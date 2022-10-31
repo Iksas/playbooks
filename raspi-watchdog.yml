@@ -1,0 +1,54 @@
+---
+- name: Set up and enable the Raspberry Pi's hardware watchdog
+  hosts: all
+  become: yes
+
+  handlers:
+    - name: restart watchdog service
+      service:
+        name: watchdog
+        enabled: yes
+        state: restarted
+      register: restart
+      retries: 2
+      until: restart is success
+    
+    - name: reboot the machine
+      reboot:
+    
+    
+  tasks:
+    - name: Enable the watchdog device in config.txt
+      lineinfile:
+        path: /boot/config.txt
+        search_string: 'dtparam=watchdog'
+        line: dtparam=watchdog=on
+      notify: reboot the machine
+    
+    
+    - name: Install and enable the watchdog daemon
+      apt:
+        name: watchdog
+        state: present
+        update_cache: yes
+
+
+    - name: configure the watchdog
+      lineinfile:
+        dest: /etc/watchdog.conf
+        search_string: "{{ item.search_string }}"
+        line: "{{ item.line }}"
+        create: yes
+      loop:
+        - { search_string: 'watchdog-device', line: 'watchdog-device = /dev/watchdog' }
+        - { search_string: 'watchdog-timeout', line: 'watchdog-timeout = 15' }
+        - { search_string: 'max-load-1', line: 'max-load-1 = 24' }
+      notify: restart watchdog service
+    
+    
+    - name: enable the watchdog service
+      service:
+        name: watchdog
+        enabled: yes
+        state: started
+    
